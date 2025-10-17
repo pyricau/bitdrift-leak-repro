@@ -1,59 +1,46 @@
 package com.example.leakrepro
 
+import android.os.Build
 import android.os.Bundle
-import com.google.android.material.snackbar.Snackbar
+import android.view.inspector.WindowInspector
+import android.widget.FrameLayout
+import androidx.annotation.RequiresApi
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.navigation.findNavController
-import androidx.navigation.ui.AppBarConfiguration
-import androidx.navigation.ui.navigateUp
-import androidx.navigation.ui.setupActionBarWithNavController
-import android.view.Menu
-import android.view.MenuItem
-import com.example.leakrepro.databinding.ActivityMainBinding
+import io.bitdrift.capture.Capture
+import io.bitdrift.capture.providers.session.SessionStrategy
+import leakcanary.LeakCanary
 
 class MainActivity : AppCompatActivity() {
 
-  private lateinit var appBarConfiguration: AppBarConfiguration
-  private lateinit var binding: ActivityMainBinding
-
+  @RequiresApi(Build.VERSION_CODES.Q)
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
-    binding = ActivityMainBinding.inflate(layoutInflater)
-    setContentView(binding.root)
+    setContentView(FrameLayout(this))
 
-    setSupportActionBar(binding.toolbar)
+    // No window views so far.
+    check(WindowInspector.getGlobalWindowViews().isEmpty())
 
-    val navController = findNavController(R.id.nav_host_fragment_content_main)
-    appBarConfiguration = AppBarConfiguration(navController.graph)
-    setupActionBarWithNavController(navController, appBarConfiguration)
+    AlertDialog.Builder(this)
+      .setTitle("This dialog is actually the first window")
+      .setPositiveButton("Click here to trigger leak in 5 seconds", null)
+      .show()
 
-    binding.fab.setOnClickListener { view ->
-      Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-        .setAction("Action", null)
-        .setAnchorView(R.id.fab).show()
+    // Now there is 1 window view, the dialog's window view.
+    // The 2nd window view (the activity window view) will be added after onCreate()
+    check(WindowInspector.getGlobalWindowViews().size == 1)
+
+    Capture.Logger.start(
+      apiKey = TODO("Paste Bitdrift API key to repro leak"),
+      sessionStrategy = SessionStrategy.Fixed()
+    )
+  }
+
+  companion object {
+    init {
+      // Trigger heap dumps as soon as any instance is retained.
+      LeakCanary.config = LeakCanary.config.copy(retainedVisibleThreshold = 1)
     }
-  }
-
-  override fun onCreateOptionsMenu(menu: Menu): Boolean {
-    // Inflate the menu; this adds items to the action bar if it is present.
-    menuInflater.inflate(R.menu.menu_main, menu)
-    return true
-  }
-
-  override fun onOptionsItemSelected(item: MenuItem): Boolean {
-    // Handle action bar item clicks here. The action bar will
-    // automatically handle clicks on the Home/Up button, so long
-    // as you specify a parent activity in AndroidManifest.xml.
-    return when (item.itemId) {
-      R.id.action_settings -> true
-      else -> super.onOptionsItemSelected(item)
-    }
-  }
-
-  override fun onSupportNavigateUp(): Boolean {
-    val navController = findNavController(R.id.nav_host_fragment_content_main)
-    return navController.navigateUp(appBarConfiguration)
-      || super.onSupportNavigateUp()
   }
 }
